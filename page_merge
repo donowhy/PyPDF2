@@ -1,0 +1,78 @@
+from PyPDF2 import PdfFileWriter, PdfFileReader
+from PyPDF2.pdf import PageObject
+
+MODEL_WIDTH = 612
+MODEL_HEIGHT = 792
+
+
+def test_page_merge():
+
+    output = PdfFileWriter()
+    witness_pdf = PdfFileReader(file('witnessFull.pdf', 'rb'))
+    model_pdf = PdfFileReader(file('model.pdf', 'rb'))
+
+    model_page = model_pdf.getPage(0)
+    page0 = witness_pdf.getPage(0)
+    page1 = witness_pdf.getPage(1)
+
+    page_0_width_crop = page0.cropBox.getWidth()
+
+    page_0_height_crop = page0.cropBox.getHeight()
+
+    page_1_height_crop = page1.cropBox.getHeight()
+
+
+    blank_page = PageObject.createBlankPage(width=MODEL_WIDTH, height=MODEL_HEIGHT)
+    CURRENT_HEIGHT = 0
+    page_0_translate_y = MODEL_HEIGHT - (page0.cropBox.lowerLeft[1] + page0.cropBox.upperRight[1]) + 60
+    blank_page.mergeTranslatedPage(page0, 0, page_0_translate_y)
+    CURRENT_HEIGHT += page0.cropBox.getHeight()
+    offset = page0.cropBox.getHeight() - 40
+    blank_page.mergeTranslatedPage(page1, 0,  offset * -1)
+    CURRENT_HEIGHT += page1.cropBox.getHeight()
+
+
+
+    def addFull(CURRENT_HEIGHT_COUNT, pageA, pageB, addHere):
+        if(pageA.cropBox.getHeight() + CURRENT_HEIGHT_COUNT <= MODEL_HEIGHT):
+            addHere.mergeTranslatedPage(pageA, 0, page0.cropBox.getHeight() - 90)
+            CURRENT_HEIGHT_COUNT += pageA.cropBox.getHeight()
+            if(pageB.cropBox.getHeight() + CURRENT_HEIGHT_COUNT <= MODEL_HEIGHT):
+                addHere.mergeTranslatedPage(pageB, 0, (page_0_translate_y + 50) * -1)  # -520
+                CURRENT_HEIGHT_COUNT += pageB.cropBox.getHeight()
+            else:
+                print "height exceeded for page1, adding to new page"
+        else:
+            print "height exceeded for page0, adding to new page"
+            output.addPage(addHere)
+            blank_page_new = PageObject.createBlankPage(width=MODEL_WIDTH, height=MODEL_HEIGHT)
+            CURRENT_HEIGHT_COUNT = 0
+            blank_page_new.mergeTranslatedPage(pageA, 0, page_0_translate_y)
+            CURRENT_HEIGHT_COUNT += pageA.cropBox.getHeight()
+
+            blank_page_new.mergeTranslatedPage(pageB, 0, (page0.cropBox.getHeight() - 40) * -1)  # -520
+            CURRENT_HEIGHT_COUNT += pageB.cropBox.getHeight()
+
+            # output.addPage(blank_page_new)
+            addHere = blank_page_new
+
+        return CURRENT_HEIGHT_COUNT, addHere
+
+    print "looping\n"
+
+    for i in range(0,1):
+        print "current height before = ", CURRENT_HEIGHT
+        CURRENT_HEIGHT, blank_page = addFull(CURRENT_HEIGHT, page0, page1, blank_page)
+        print "current height after = ", CURRENT_HEIGHT
+        print "~~"
+
+    print "page0 top = ", page_0_translate_y
+
+    output.addPage(blank_page)
+    outputStream_pdf = file("document-output.pdf", "wb+")
+    output.write(outputStream_pdf)
+    outputStream_pdf.close()
+
+
+if __name__ == "__main__":
+    test_page_merge()
